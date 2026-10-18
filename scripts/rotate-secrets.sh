@@ -49,7 +49,7 @@ chmod 600 .env.new && mv .env.new .env
 echo ".env rewritten (DEBUG=False)"
 
 # 3) restart backend with the new environment, then set the admin password
-docker compose up -d --force-recreate backend
+docker compose up -d --no-deps --force-recreate backend
 for i in $(seq 1 40); do
   docker exec wedding_backend python -c "import urllib.request;urllib.request.urlopen('http://localhost:8000/api/public/wedding-info/')" >/dev/null 2>&1 && break
   sleep 1
