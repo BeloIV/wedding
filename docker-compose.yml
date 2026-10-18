@@ -1,0 +1,46 @@
+services:
+  backend:
+    build: ./backend
+    container_name: wedding_backend
+    # only reachable from this host and from the nginx container; the public entry point is the frontend (5201)
+    ports:
+      - "127.0.0.1:8301:8000"
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - wedding_media:/app/media
+      - wedding_static:/app/staticfiles
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    container_name: wedding_frontend
+    ports:
+      - "5201:80"
+    depends_on:
+      - backend
+    volumes:
+      - wedding_media:/srv/media:ro
+      - wedding_static:/srv/static:ro
+    restart: unless-stopped
+
+  db:
+    image: postgres:15
+    container_name: wedding_db
+    # No published port: reachable only on the compose network.
+    env_file: .env
+    volumes:
+      - wedding_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  wedding_pgdata:
+  wedding_media:
+  wedding_static:
