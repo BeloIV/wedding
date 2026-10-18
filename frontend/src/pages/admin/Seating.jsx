@@ -131,6 +131,12 @@ function defaultLayout(total) {
     return { side: row === 0 ? 'top' : 'bottom', t: (idx + 1) / (count + 1) }
   })
 }
+/* Round tables: seat = { a: angle in degrees, 0 = right, -90 = top } */
+function defaultRoundLayout(total) {
+  return Array.from({ length: total }, (_, i) => ({ a: -90 + (i / total) * 360 }))
+}
+const defaultLayoutFor = (shape, total) => (shape === 'rect' ? defaultLayout(total) : defaultRoundLayout(total))
+
 function seatXY(s, w, h) {
   if (s.side === 'top') return { x: s.t * w, y: -9 }
   if (s.side === 'bottom') return { x: s.t * w, y: h + 9 }
@@ -197,7 +203,7 @@ function FloorTable({ table, guests, zoom, selected, onSelect, onMove, onResize,
   const w = table.width, h = table.height
   const { occ, total } = computeOcc(guests, table.capacity)
 
-  const layoutArr = isRect ? (table.seat_layout || defaultLayout(total)) : null
+  const layoutArr = table.seat_layout || defaultLayoutFor(table.shape, total)
   const seats = Array.from({ length: total }, (_, i) => {
     const o = occ[i]
     const gid = o ? o.g.id : null
@@ -205,7 +211,8 @@ function FloorTable({ table, guests, zoom, selected, onSelect, onMove, onResize,
       const l = layoutArr[i] || { side: 'bottom', t: 0.5 }
       return { i, ...seatXY(l, w, h), name: o?.name || null, gid, side: l.side }
     }
-    const a = -Math.PI / 2 + (i / total) * 2 * Math.PI
+    const deg = layoutArr[i]?.a ?? -90 + (i / total) * 360
+    const a = (deg * Math.PI) / 180
     const r = Math.max(w, h) / 2 + 9
     return {
       i, x: w / 2 + r * Math.cos(a), y: h / 2 + r * Math.sin(a),
@@ -215,7 +222,7 @@ function FloorTable({ table, guests, zoom, selected, onSelect, onMove, onResize,
 
   // first time we enter seat editing, freeze the default layout so it can be edited
   useEffect(() => {
-    if (editing && isRect && !table.seat_layout) onLayout(table.id, layoutArr)
+    if (editing && !table.seat_layout) onLayout(table.id, layoutArr)
   }, [editing]) // eslint-disable-line
 
   const seatDrag = useRef(null)
@@ -232,6 +239,11 @@ function FloorTable({ table, guests, zoom, selected, onSelect, onMove, onResize,
     const dx = (e.clientX - d.sx) / zoom, dy = (e.clientY - d.sy) / zoom
     const nx = d.x0 + dx * Math.cos(d.th) + dy * Math.sin(d.th)
     const ny = d.y0 - dx * Math.sin(d.th) + dy * Math.cos(d.th)
+    if (!isRect) {
+      const deg = (Math.atan2(ny - h / 2, nx - w / 2) * 180) / Math.PI
+      onLayout(table.id, d.layout.map((l, idx) => idx === d.i ? { a: Math.round(deg * 10) / 10 } : l))
+      return
+    }
     const best = [
       { side: 'top', dist: Math.abs(ny + 9), t: nx / w },
       { side: 'bottom', dist: Math.abs(ny - h - 9), t: nx / w },
@@ -252,13 +264,27 @@ function FloorTable({ table, guests, zoom, selected, onSelect, onMove, onResize,
     const t = Math.max(0.04, Math.min(0.96, (horiz ? e.nativeEvent.offsetX : e.nativeEvent.offsetY) / (horiz ? w : h)))
     onLayout(table.id, [...layoutArr, { side, t }])
   }
+  const addSeatOnRing = (e) => {
+    e.stopPropagation()
+    const half = RING / 2
+    const deg = (Math.atan2(e.nativeEvent.offsetY - half, e.nativeEvent.offsetX - half) * 180) / Math.PI
+    onLayout(table.id, [...layoutArr, { a: Math.round(deg * 10) / 10 }])
+  }
   const EDGE = 22
+  const RING = Math.max(w, h) + 2 * EDGE + 14
 
   return (
     <div
       className="absolute select-none"
       style={{ left: table.pos_x, top: table.pos_y, width: table.width, height: table.height, transform: `rotate(${table.rotation}deg)` }}
     >
+      {editing && !isRect && (
+        // clickable ring around a round table: click = add a seat at that angle
+        <div onPointerDown={e => e.stopPropagation()} onClick={addSeatOnRing}
+          title="Klikni = pridať miesto"
+          className="absolute rounded-full bg-wine/10 hover:bg-wine/20 border border-dashed border-wine/40 cursor-copy z-0"
+          style={{ width: RING, height: RING, left: w / 2 - RING / 2, top: h / 2 - RING / 2 }} />
+      )}
       {editing && isRect && [
         ['top', { left: 0, top: -EDGE, width: w, height: EDGE }],
         ['bottom', { left: 0, top: h, width: w, height: EDGE }],
@@ -317,7 +343,7 @@ function FloorTable({ table, guests, zoom, selected, onSelect, onMove, onResize,
         onPointerDown={startMove}
         onDragOver={e => { e.preventDefault() }}
         onDrop={e => { e.preventDefault(); const id = e.dataTransfer.getData('guest'); if (id) onDropGuest(parseInt(id), table.id) }}
-        className={`w-full h-full flex flex-col items-center justify-center text-center cursor-move transition-shadow
+        className={`relative w-full h-full flex flex-col items-center justify-center text-center cursor-move transition-shadow
           ${isRect ? 'rounded-xl' : 'rounded-full'}
           ${selected ? 'ring-2 ring-wine shadow-lg z-10' : 'ring-1 ring-stone-300'}
           ${over ? 'bg-red-50' : 'bg-white'}`}
@@ -412,7 +438,7 @@ export default function Seating() {
     const t = tables.find(x => x.id === id)
     if (!t) return
     const { total } = computeOcc(byTable[id] || [], t.capacity)
-    const layout = (t.seat_layout || defaultLayout(total)).filter((_, i) => i !== idx)
+    const layout = (t.seat_layout || defaultLayoutFor(t.shape, total)).filter((_, i) => i !== idx)
     if (layout.length === 0) return
     onLayout(id, layout)
     // pinned guests: free the removed seat, shift later ones down
@@ -586,14 +612,16 @@ export default function Seating() {
                         <GuestRow key={g.id} guest={g} action="remove" onAction={gg => assign(gg.id, 'pool')}
                           seatLabel={g.seat != null ? `#${g.seat + 1}` : null} />
                       ))}
-                {sel.shape === 'rect' && (
+                {(
                   <div className="pt-1">
                     <button onClick={() => setEditId(editId === sel.id ? null : sel.id)}
                       className={editId === sel.id ? 'admin-btn w-full' : 'w-full px-3 py-1.5 border border-gray-200 text-gray-600 text-sm rounded-lg hover:bg-gray-50'}>
                       {editId === sel.id ? 'Hotovo' : 'Upraviť miesta pri stole'}
                     </button>
                     {editId === sel.id && (
-                      <p className="text-[11px] text-gray-500 mt-1.5">Klikni na okraj stola = pridať miesto · ťahaj guľôčku = presunúť (aj na inú stranu) · červené × = zrušiť.</p>
+                      <p className="text-[11px] text-gray-500 mt-1.5">{sel.shape === 'rect'
+                        ? 'Klikni na okraj stola = pridať miesto · ťahaj guľôčku = presunúť (aj na inú stranu) · červené × = zrušiť.'
+                        : 'Klikni na kruh okolo stola = pridať miesto · ťahaj guľôčku po kruhu = presunúť · červené × = zrušiť.'}</p>
                     )}
                   </div>
                 )}
