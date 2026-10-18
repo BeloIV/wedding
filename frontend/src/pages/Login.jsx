@@ -126,7 +126,10 @@ export default function Login() {
           </form>
         </div>
 
-        <p className="text-center mt-5 text-xs font-sans" style={{ color: 'rgba(255,255,255,0.2)' }}>
+        <p className="text-center mt-5 text-xs font-sans" style={{ color: 'rgba(255,255,255,0.3)' }}>
+          <a href="/zabudnute-heslo" className="hover:text-rose/60 transition-colors">Zabudnuté heslo / prvé prihlásenie</a>
+        </p>
+        <p className="text-center mt-3 text-xs font-sans" style={{ color: 'rgba(255,255,255,0.2)' }}>
           <a href="/" className="hover:text-rose/60 transition-colors">← Späť na stránku hostí</a>
         </p>
       </div>

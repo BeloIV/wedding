@@ -20,7 +20,7 @@ const SIDES = [
 const EMPTY = {
   first_name: '', last_name: '', email: '', phone: '',
   rsvp_status: 'pending', dietary: 'none', dietary_notes: '',
-  table_number: '', invited_side: 'both', notes: '', invitation: null,
+  table_number: '', invited_side: 'both', couple_role: '', notes: '', invitation: null,
 }
 
 function CopyBtn({ text }) {
@@ -235,6 +235,22 @@ function GuestModal({ guest, invitations, onClose, onSave }) {
               </select>
             </div>
           </div>
+          <div>
+            <label className="admin-label">Kto je to v páre?</label>
+            <div className="flex gap-2">
+              {[['', 'Nikto (bežný hosť)'], ['groom', 'Ženích'], ['bride', 'Nevesta']].map(([v, l]) => (
+                <button key={v || 'none'} type="button" onClick={() => set('couple_role', v)}
+                  className={`flex-1 px-3 py-2 rounded-lg text-sm border transition-colors ${form.couple_role === v ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>
+                  {l}
+                </button>
+              ))}
+            </div>
+            {form.couple_role && (
+              <p className="text-xs text-gray-400 mt-1.5">
+                Ženích a nevesta sú automaticky administrátori{form.email ? ` (účet na ${form.email})` : ' – doplň e-mail hosťa, aby dostal prístup'}. Meno sa prenesie do nastavení svadby.
+              </p>
+            )}
+          </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="admin-label">Stôl č.</label>
@@ -276,6 +292,7 @@ export default function Guests() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [modal, setModal] = useState(null)
+  const [notice, setNotice] = useState('')
   const [qrToken, setQrToken] = useState(null)
   const [groupModal, setGroupModal] = useState(false)
 
@@ -290,6 +307,16 @@ export default function Guests() {
     if (mode === 'add') setGuests(g => [guest, ...g])
     else setGuests(g => g.map(x => x.id === guest.id ? guest : x))
     setModal(null)
+    const acc = guest.admin_account
+    if (acc) {
+      const who = acc.who === 'groom' ? 'Ženích' : 'Nevesta'
+      setNotice(acc.no_email ? `${who} nastavený/á. Bez e-mailu nemá admin účet – doplň ho v detaile hosťa.`
+        : acc.created ? (acc.mail_sent ? `${who}: admin účet vytvorený, odkaz na nastavenie hesla odoslaný na ${acc.email}.`
+            : `${who}: admin účet vytvorený (${acc.email}), ale e-mail sa nepodarilo odoslať – použi „Zabudnuté heslo“ na prihlásení.`)
+        : `${who} nastavený/á, ${acc.email} je administrátor.`)
+    }
+    // only one groom and one bride: refresh so the previous holder loses the badge
+    api.get('/api/guests/').then(r => setGuests(r.data.results || r.data))
     api.get('/api/invitations/').then(r => setInvitations(r.data.results || r.data))
   }
 
@@ -334,6 +361,12 @@ export default function Guests() {
           </button>
         </div>
       </div>
+      {notice && (
+        <div className="mb-4 px-4 py-3 bg-indigo-50 border border-indigo-100 rounded-xl text-sm text-indigo-800 flex items-start gap-2">
+          <span className="flex-1">{notice}</span>
+          <button onClick={() => setNotice('')} className="text-indigo-400 hover:text-indigo-700"><X className="w-4 h-4" /></button>
+        </div>
+      )}
 
       {/* Invitation groups summary */}
       {invitations.length > 0 && (
@@ -405,6 +438,11 @@ export default function Guests() {
                   <tr key={g.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-4 py-3 font-medium text-gray-900">
                       {g.first_name} {g.last_name}
+                      {g.couple_role && (
+                        <span className={`ml-2 text-[10px] px-1.5 py-0.5 rounded-full ${g.couple_role === 'groom' ? 'bg-sky-100 text-sky-700' : 'bg-rose-100 text-rose-700'}`}>
+                          {g.couple_role === 'groom' ? 'Ženích' : 'Nevesta'}
+                        </span>
+                      )}
                       {g.invited_side !== 'both' && (
                         <span className="ml-2 text-xs text-gray-400">({g.invited_side === 'bride' ? 'N' : 'Ž'})</span>
                       )}

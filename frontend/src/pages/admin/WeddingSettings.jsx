@@ -3,7 +3,7 @@ import { Save, CheckCircle, Plus, X, Upload, Image as ImageIcon, Palette } from 
 import api from '../../api/axios'
 
 const EMPTY = {
-  groom_name: '', bride_name: '', wedding_date: '',
+  groom_name: '', bride_name: '', groom_email: '', bride_email: '', wedding_date: '',
   ceremony_venue: '', ceremony_address: '', ceremony_time: '',
   reception_venue: '', reception_address: '', reception_time: '',
   dress_code: '', additional_info: '', accommodation_info: '',
@@ -22,6 +22,7 @@ export default function WeddingSettings() {
   const [form, setForm] = useState(EMPTY)
   const [loading, setLoading] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [accountNote, setAccountNote] = useState('')
   const [dcImagePreview, setDcImagePreview] = useState(null)
   const [dcImageFile, setDcImageFile] = useState(null)
   const [dcImageCurrent, setDcImageCurrent] = useState(null)
@@ -33,6 +34,8 @@ export default function WeddingSettings() {
       setForm({
         groom_name: d.groom_name || '',
         bride_name: d.bride_name || '',
+        groom_email: d.groom_email || '',
+        bride_email: d.bride_email || '',
         wedding_date: d.wedding_date || '',
         ceremony_venue: d.ceremony_venue || '',
         ceremony_address: d.ceremony_address || '',
@@ -67,6 +70,7 @@ export default function WeddingSettings() {
     e.preventDefault()
     setLoading(true)
     try {
+      let res
       if (dcImageFile) {
         const fd = new FormData()
         Object.entries(form).forEach(([k, v]) => {
@@ -74,10 +78,14 @@ export default function WeddingSettings() {
           else if (v !== null && v !== undefined) fd.append(k, v)
         })
         fd.append('dress_code_image', dcImageFile)
-        await api.put('/api/wedding-info/', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+        res = await api.put('/api/wedding-info/', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
       } else {
-        await api.put('/api/wedding-info/', form)
+        res = await api.put('/api/wedding-info/', form)
       }
+      const made = (res.data.admin_accounts || []).filter(a => a.created)
+      setAccountNote(made.length
+        ? made.map(a => a.mail_sent ? `${a.email}: admin účet vytvorený, odkaz na heslo odoslaný.` : `${a.email}: admin účet vytvorený, e-mail sa nepodarilo odoslať („Zabudnuté heslo“ na prihlásení).`).join(' ')
+        : '')
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
     } catch { } finally { setLoading(false) }
@@ -104,6 +112,18 @@ export default function WeddingSettings() {
               <input className="admin-input" value={form.bride_name} onChange={e => set('bride_name', e.target.value)} placeholder="Meno Priezvisko" />
             </div>
           </div>
+          <div className="grid grid-cols-2 gap-4 mt-4">
+            <div>
+              <label className="admin-label">E-mail ženícha (admin)</label>
+              <input type="email" className="admin-input" value={form.groom_email} onChange={e => set('groom_email', e.target.value)} placeholder="zenich@email.sk" />
+            </div>
+            <div>
+              <label className="admin-label">E-mail nevesty (admin)</label>
+              <input type="email" className="admin-input" value={form.bride_email} onChange={e => set('bride_email', e.target.value)} placeholder="nevesta@email.sk" />
+            </div>
+          </div>
+          <p className="text-xs text-gray-400 mt-1.5">Na tieto adresy sa automaticky vytvoria admin účty a príde odkaz na nastavenie hesla. Ženícha a nevestu môžeš určiť aj priamo v zozname hostí.</p>
+          {accountNote && <p className="text-xs text-indigo-700 bg-indigo-50 rounded-lg px-3 py-2 mt-2">{accountNote}</p>}
           <div className="mt-4">
             <label className="admin-label">Dátum svadby</label>
             <input type="date" className="admin-input" value={form.wedding_date} onChange={e => set('wedding_date', e.target.value)} />

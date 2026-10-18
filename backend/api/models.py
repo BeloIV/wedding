@@ -37,6 +37,9 @@ class Invitation(models.Model):
 class WeddingInfo(models.Model):
     groom_name = models.CharField(max_length=100, default='')
     bride_name = models.CharField(max_length=100, default='')
+    # these two addresses automatically get full admin accounts (see users/accounts.py)
+    groom_email = models.EmailField(blank=True)
+    bride_email = models.EmailField(blank=True)
     wedding_date = models.DateField(null=True, blank=True)
     ceremony_venue = models.CharField(max_length=200, blank=True)
     ceremony_address = models.TextField(blank=True)
@@ -89,6 +92,8 @@ class Guest(models.Model):
     table_number = models.IntegerField(null=True, blank=True)
     seat = models.IntegerField(null=True, blank=True)  # 0-based seat index within the table
     invited_side = models.CharField(max_length=10, choices=SIDE_CHOICES, default='both')
+    # which guest is the groom / the bride (at most one each); ticked in the guest list
+    couple_role = models.CharField(max_length=5, blank=True, default='', choices=[('', '—'), ('groom', 'Ženích'), ('bride', 'Nevesta')])
     notes = models.TextField(blank=True)
     invitation = models.ForeignKey(
         'Invitation', null=True, blank=True,

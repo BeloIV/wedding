@@ -4,7 +4,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
-from users.views import MeView
+from users.views import MeView, PasswordResetRequestView, PasswordResetConfirmView
 
 class ThrottledLoginView(TokenObtainPairView):
     throttle_classes = [ScopedRateThrottle]
@@ -21,6 +21,8 @@ urlpatterns = [
     path('api/auth/login/', ThrottledLoginView.as_view()),
     path('api/auth/refresh/', ThrottledRefreshView.as_view()),
     path('api/auth/me/', MeView.as_view()),
+    path('api/auth/password-reset/', PasswordResetRequestView.as_view()),
+    path('api/auth/password-reset/confirm/', PasswordResetConfirmView.as_view()),
     path('api/', include('api.urls')),
 ]
 

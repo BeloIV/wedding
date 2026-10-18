@@ -3,13 +3,14 @@ from django.utils import timezone
 from rest_framework import viewsets, generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
+from users.accounts import ensure_admin, send_password_mail
 from .models import (
     WeddingInfo, Guest, BudgetCategory, BudgetItem,
     Task, Vendor, WishlistItem, Gallery, Photo,
     RSVPResponse, ProgramItem, Invitation, Table,
 )
 from .serializers import (
-    WeddingInfoSerializer, GuestSerializer, BudgetCategorySerializer,
+    WeddingInfoSerializer, PublicWeddingInfoSerializer, GuestSerializer, BudgetCategorySerializer,
     BudgetItemSerializer, TaskSerializer, VendorSerializer,
     WishlistItemSerializer, GallerySerializer, GalleryListSerializer,
     PhotoSerializer, RSVPResponseSerializer, ProgramItemSerializer,
@@ -21,6 +22,20 @@ from .serializers import (
 class WeddingInfoView(generics.RetrieveUpdateAPIView):
     serializer_class = WeddingInfoSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+    def update(self, request, *args, **kwargs):
+        response = super().update(request, *args, **kwargs)
+        # the couple's addresses automatically become full admins; new accounts get a password-setup mail
+        info = self.get_object()
+        accounts = []
+        for who, email in (('groom', info.groom_email), ('bride', info.bride_email)):
+            user, created = ensure_admin(email)
+            if user is None:
+                continue
+            mailed = send_password_mail(user, new_account=True) if created else None
+            accounts.append({'who': who, 'email': user.email, 'created': created, 'mail_sent': mailed})
+        response.data['admin_accounts'] = accounts
+        return response
 
     def get_object(self):
         obj, _ = WeddingInfo.objects.get_or_create(pk=1)
@@ -36,6 +51,37 @@ class GuestViewSet(viewsets.ModelViewSet):
     queryset = Guest.objects.all()
     serializer_class = GuestSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+    def _sync_couple(self, guest):
+        """Ticking a guest as groom/bride: only one of each, the settings follow, the guest becomes a full admin."""
+        if guest.couple_role not in ('groom', 'bride'):
+            return None
+        role = guest.couple_role
+        Guest.objects.filter(couple_role=role).exclude(pk=guest.pk).update(couple_role='')
+        info, _ = WeddingInfo.objects.get_or_create(pk=1)
+        setattr(info, f'{role}_name', f'{guest.first_name} {guest.last_name}'.strip())
+        if guest.email:
+            setattr(info, f'{role}_email', guest.email)
+        info.save()
+        if not guest.email:
+            return {'who': role, 'email': '', 'created': False, 'mail_sent': None, 'no_email': True}
+        user, created = ensure_admin(guest.email)
+        mailed = send_password_mail(user, new_account=True) if created else None
+        return {'who': role, 'email': user.email, 'created': created, 'mail_sent': mailed}
+
+    def create(self, request, *args, **kwargs):
+        response = super().create(request, *args, **kwargs)
+        account = self._sync_couple(Guest.objects.get(pk=response.data['id']))
+        if account:
+            response.data['admin_account'] = account
+        return response
+
+    def update(self, request, *args, **kwargs):
+        response = super().update(request, *args, **kwargs)
+        account = self._sync_couple(Guest.objects.get(pk=response.data['id']))
+        if account:
+            response.data['admin_account'] = account
+        return response
 
 
 class BudgetCategoryViewSet(viewsets.ModelViewSet):
@@ -110,7 +156,7 @@ class TableViewSet(viewsets.ModelViewSet):
 # ── Public views ──────────────────────────────────────────
 
 class PublicWeddingInfoView(generics.RetrieveAPIView):
-    serializer_class = WeddingInfoSerializer
+    serializer_class = PublicWeddingInfoSerializer
     permission_classes = [permissions.AllowAny]
 
     def get_object(self):

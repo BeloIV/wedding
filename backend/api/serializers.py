@@ -34,6 +34,14 @@ class WeddingInfoSerializer(serializers.ModelSerializer):
         return super().to_internal_value(data)
 
 
+class PublicWeddingInfoSerializer(WeddingInfoSerializer):
+    """What guests see: never the admin e-mail addresses."""
+
+    class Meta(WeddingInfoSerializer.Meta):
+        fields = None
+        exclude = ['groom_email', 'bride_email']
+
+
 class GuestSerializer(serializers.ModelSerializer):
     class Meta:
         model = Guest

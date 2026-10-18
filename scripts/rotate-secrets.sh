@@ -38,7 +38,7 @@ echo "database password changed"
   echo
   echo "SECRET_KEY=$NEW_SECRET"
   echo "DEBUG=False"
-  for k in ALLOWED_HOSTS CORS_ALLOWED_ORIGINS CSRF_TRUSTED_ORIGINS HTTPS_ONLY NUM_PROXIES; do
+  for k in ALLOWED_HOSTS CORS_ALLOWED_ORIGINS CSRF_TRUSTED_ORIGINS HTTPS_ONLY NUM_PROXIES SITE_URL EMAIL_FROM BREVO_SMTP_LOGIN BREVO_SMTP_KEY; do
     v=$(old $k); [ -n "$v" ] && echo "$k=$v"
   done
   echo

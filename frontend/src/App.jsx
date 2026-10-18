@@ -7,6 +7,7 @@ import GuestLayout from './components/guest/GuestLayout'
 import AdminLayout from './components/admin/AdminLayout'
 
 import Login from './pages/Login'
+import { ForgotPassword, SetPassword } from './pages/PasswordPages'
 
 import Home from './pages/guest/Home'
 import InvitePage from './pages/guest/Invite'
@@ -34,6 +35,8 @@ export default function App() {
         <Routes>
           {/* Login */}
           <Route path="/login" element={<Login />} />
+          <Route path="/zabudnute-heslo" element={<ForgotPassword />} />
+          <Route path="/nastavit-heslo" element={<SetPassword />} />
 
           {/* Invite landing */}
           <Route path="/invite/:token" element={<InvitePage />} />

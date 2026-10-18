@@ -84,6 +84,7 @@ REST_FRAMEWORK = {
         'login': '10/min',    # admin login / token refresh (brute force)
         'invite': '30/min',   # invite code lookups (guessing codes)
         'rsvp': '20/min',
+        'pwreset': '5/min',   # password-reset e-mails
         'reserve': '20/min',
     },
     # client IP comes from X-Forwarded-For set by our nginx (1 proxy); raise to 2+ if another proxy is added in front
@@ -92,6 +93,29 @@ REST_FRAMEWORK = {
 
 # Counters live in process memory, so gunicorn runs a single worker (threads) to keep limits exact.
 CACHES = {'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache'}}
+
+# ── e-mail (Brevo SMTP) ──────────────────────────────────
+# Put BREVO_SMTP_LOGIN and BREVO_SMTP_KEY in .env. Without them mails are only printed to the container log.
+EMAIL_HOST = 'smtp-relay.brevo.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = config('BREVO_SMTP_LOGIN', default='')
+EMAIL_HOST_PASSWORD = config('BREVO_SMTP_KEY', default='')
+EMAIL_BACKEND = (
+    'django.core.mail.backends.smtp.EmailBackend'
+    if EMAIL_HOST_USER and EMAIL_HOST_PASSWORD
+    else 'django.core.mail.backends.console.EmailBackend'
+)
+EMAIL_TIMEOUT = 15
+DEFAULT_FROM_EMAIL = config('EMAIL_FROM', default='Naša svadba <noreply@bytboyzserver.xyz>')
+SITE_URL = config('SITE_URL', default='https://wedding.bytboyzserver.xyz')
+PASSWORD_RESET_TIMEOUT = 7 * 24 * 3600  # setup links stay valid 7 days
+
+AUTH_PASSWORD_VALIDATORS = [
+    {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator', 'OPTIONS': {'min_length': 10}},
+    {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
+]
 
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 CSRF_TRUSTED_ORIGINS = [o.strip() for o in config('CSRF_TRUSTED_ORIGINS', default='').split(',') if o.strip()]
